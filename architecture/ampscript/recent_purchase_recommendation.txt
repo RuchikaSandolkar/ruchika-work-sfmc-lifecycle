@@ -1,0 +1,108 @@
+%%[
+/* =========================================================
+   ARCHITECT-LEVEL CROSS-SELL PERSONALIZATION SCRIPT
+   Purpose: Post-purchase dynamic recommendation
+   Context: Journey Builder / Email Studio
+   ========================================================= */
+
+/* -------------------------
+   1. VARIABLE DECLARATION
+--------------------------*/
+VAR 
+    @subscriberKey,
+    @firstName,
+    @lastCategory,
+    @recommendedProduct,
+    @productURL,
+    @discountCode,
+    @expiryDate,
+    @rows,
+    @rowCount,
+    @row
+
+/* -------------------------
+   2. CORE ATTRIBUTE VALUES
+--------------------------*/
+SET @subscriberKey = AttributeValue("_SubscriberKey")
+SET @firstName = AttributeValue("FirstName")
+SET @lastCategory = AttributeValue("LastPurchaseCategory")
+
+/* -------------------------
+   3. FALLBACK HANDLING
+--------------------------*/
+IF EMPTY(@firstName) THEN
+    SET @firstName = "Valued Customer"
+ENDIF
+
+IF EMPTY(@lastCategory) THEN
+    SET @lastCategory = "General"
+ENDIF
+
+/* -------------------------
+   4. PRODUCT RECOMMENDATION
+   - Only in-stock
+   - Ordered by Priority
+--------------------------*/
+SET @rows = LookupOrderedRows(
+                "Product_Recommendations",
+                1,
+                "Priority ASC",
+                "Category", @lastCategory,
+                "InStock", "True"
+            )
+
+SET @rowCount = RowCount(@rows)
+
+IF @rowCount > 0 THEN
+    SET @row = Row(@rows, 1)
+    SET @recommendedProduct = Field(@row, "ProductName")
+    SET @productURL = Field(@row, "ProductURL")
+ELSE
+    /* Fallback product */
+    SET @recommendedProduct = "Our Best-Selling Collection"
+    SET @productURL = "https://yourwebsite.com/best-sellers"
+ENDIF
+
+/* -------------------------
+   5. UNIQUE COUPON LOGIC
+--------------------------*/
+SET @rows = LookupRows(
+                "Coupon_Codes",
+                "SubscriberKey", @subscriberKey,
+                "IsUsed", "False"
+            )
+
+SET @rowCount = RowCount(@rows)
+
+IF @rowCount > 0 THEN
+    SET @row = Row(@rows, 1)
+    SET @discountCode = Field(@row, "CouponCode")
+    SET @expiryDate = Field(@row, "ExpiryDate")
+ELSE
+    /* Controlled fallback */
+    SET @discountCode = "LOYAL10"
+    SET @expiryDate = DateAdd(Now(), 5, "D")
+ENDIF
+
+/* -------------------------
+   6. FORMAT DATE CLEANLY
+--------------------------*/
+SET @expiryDate = Format(@expiryDate, "MMMM D, YYYY")
+
+]%%
+
+Hi %%=v(@firstName)=%%,
+
+Based on your recent purchase in the %%=v(@lastCategory)=%% category, 
+we selected something specifically for you:
+
+<b>
+<a href="%%=RedirectTo(@productURL)=%%">
+%%=v(@recommendedProduct)=%%
+</a>
+</b>
+
+Use code <b>%%=v(@discountCode)=%%</b> to enjoy 10% off.
+
+Offer valid until %%=v(@expiryDate)=%%.
+
